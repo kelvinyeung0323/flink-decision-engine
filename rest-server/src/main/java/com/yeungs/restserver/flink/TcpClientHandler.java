@@ -1,7 +1,6 @@
-package com.yeungs.restserver.httpclient;
+package com.yeungs.restserver.flink;
 
 import com.yeungs.common.domain.FlinkData;
-import com.yeungs.restserver.server.RequestDispatcher;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -14,15 +13,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 @ChannelHandler.Sharable
 public class TcpClientHandler extends ChannelInboundHandlerAdapter {
 
-    private RequestDispatcher requestDispatcher;
 
-    public RequestDispatcher getRequestDispatcher() {
-        return requestDispatcher;
-    }
-
-    public void setRequestDispatcher(RequestDispatcher requestDispatcher) {
-        this.requestDispatcher = requestDispatcher;
-    }
 
     public TcpClientHandler() {
     }
@@ -32,7 +23,7 @@ public class TcpClientHandler extends ChannelInboundHandlerAdapter {
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if(msg instanceof FlinkData){
             FlinkData data = (FlinkData) msg;
-            requestDispatcher.onResponse(data);
+            FlinkSocketManager.INSTANCE.callback(data.getSeq(),data);
         }
     }
 }

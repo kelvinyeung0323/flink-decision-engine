@@ -1,4 +1,4 @@
-package com.yeungs.restserver.httpclient;
+package com.yeungs.restserver.flink;
 
 import com.yeungs.common.flink.serialize.MarshallingCodeFactory;
 import io.netty.channel.Channel;

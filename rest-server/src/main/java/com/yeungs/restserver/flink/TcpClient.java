@@ -1,7 +1,5 @@
-package com.yeungs.restserver.httpclient;
+package com.yeungs.restserver.flink;
 
-import com.yeungs.common.flink.serialize.MarshallingCodeFactory;
-import com.yeungs.restserver.server.RequestDispatcher;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -23,13 +21,10 @@ public class TcpClient {
 
     private Set<SocketChannel> channels = new CopyOnWriteArraySet<>();
 
-    private RequestDispatcher dispatcher;
     private TcpClientHandler tcpClientHandler;
 
-    public TcpClient(RequestDispatcher dispatcher) {
-        this.dispatcher = dispatcher;
+    public TcpClient() {
         this.tcpClientHandler = new TcpClientHandler();
-        this.tcpClientHandler.setRequestDispatcher(dispatcher);
         init();
     }
 

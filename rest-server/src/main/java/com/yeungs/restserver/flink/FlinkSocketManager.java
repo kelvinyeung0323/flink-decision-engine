@@ -1,42 +1,71 @@
-package com.yeungs.restserver.common;
+package com.yeungs.restserver.flink;
 
 import com.yeungs.common.coordinate.RegisterData;
 import com.yeungs.common.coordinate.RegisterListener;
 import com.yeungs.common.coordinate.ZooRegisterUtil;
+import com.yeungs.common.domain.FlinkData;
 import com.yeungs.common.enums.RegisterType;
 import com.yeungs.restserver.exception.FlinkSocketNotFoundException;
-import com.yeungs.restserver.httpclient.TcpClient;
-import com.yeungs.restserver.server.RequestDispatcher;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.SocketChannel;
-import org.apache.flink.runtime.akka.RemoteAddressExtension;
 
 import java.net.InetSocketAddress;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author: Kelvin Yeuung
  * @createdAt: 2020/8/23 15:01
  * @description:
  */
-public class FlinkSocketPool implements RegisterListener {
+public class FlinkSocketManager implements RegisterListener {
+
+    public static volatile  FlinkSocketManager INSTANCE;
 
     private ConcurrentHashMap<String, LinkedBlockingQueue<SocketChannel>> channelMap = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String,ChannelHandlerContext> contextMap  = new ConcurrentHashMap<>();
 
-
-    private RequestDispatcher requestDispatcher;
     private ZooRegisterUtil register;
 
-    public FlinkSocketPool(RequestDispatcher requestDispatcher) {
-        this.requestDispatcher = requestDispatcher;
+    private AtomicBoolean isStarted = new AtomicBoolean(false);
+
+    private  FlinkSocketManager() {
+        register = new ZooRegisterUtil();
     }
 
-    public void start() {
-        try {
-            register.monitor(this);
-        } catch (Exception e) {
-            e.printStackTrace();
+    public static FlinkSocketManager getInstance(){
+        if(INSTANCE == null) {
+            synchronized (FlinkSocketManager.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = new FlinkSocketManager();
+                }
+            }
         }
+        return INSTANCE;
+    }
+
+
+
+    public void start() {
+        if(isStarted.get()){
+            return;
+        }
+        synchronized (this){
+            if(isStarted.get()){
+                return;
+            }
+            try {
+                register.monitor(this);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            isStarted.compareAndSet(false,true);
+        }
+
+
     }
 
 
@@ -71,7 +100,7 @@ public class FlinkSocketPool implements RegisterListener {
         }
         LinkedBlockingQueue queue = channelMap.get(key);
         //建立连接
-        TcpClient tcpClient = new TcpClient(requestDispatcher);
+        TcpClient tcpClient = new TcpClient();
         try {
             //TODO:处理连不上的情况
             //TODO:建立多个连接
@@ -83,16 +112,10 @@ public class FlinkSocketPool implements RegisterListener {
 
     }
 
-    public SocketChannel poll(String key){
-         LinkedBlockingQueue<SocketChannel> queue = channelMap.get(key);
-        if(queue != null){
-            return queue.poll();
-        }
-        return null;
-    }
-
-    public <T> void  send(RegisterType type,String eventSourceCode,T data){
-
+    public <T> void  send(ChannelHandlerContext ctx, RegisterType type, String eventSourceCode, FlinkData data){
+        String seqNo = UUID.randomUUID().toString().replace("-","");
+        data.setSeq(seqNo);
+        //获取连接
         LinkedBlockingQueue<SocketChannel> queue = channelMap.get(eventSourceCode+":"+ type);
         if(queue == null){
             throw new FlinkSocketNotFoundException("获取不到Flink Source连接!");
@@ -110,5 +133,28 @@ public class FlinkSocketPool implements RegisterListener {
             //TODO:处理
         }
 
+        registerResponseContext(seqNo,ctx);
+    }
+
+
+    /**
+     * 请求的序号
+     * @param seqNo
+     * @param context
+     */
+    public void registerResponseContext(String seqNo,ChannelHandlerContext context){
+        contextMap.put(seqNo,context);
+    }
+
+
+    public <T> void callback(String seqNo,T data){
+        ChannelHandlerContext context  = contextMap.get(seqNo);
+        if(null == context){
+            return;
+        }
+        //TODO:对返回数据进行封装
+        context.writeAndFlush(data).addListener(ChannelFutureListener.CLOSE);
+        //TODO:请求超时 对象清理
+        contextMap.remove(seqNo);
     }
 }

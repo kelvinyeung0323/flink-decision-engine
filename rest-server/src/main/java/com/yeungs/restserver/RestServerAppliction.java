@@ -1,6 +1,5 @@
 package com.yeungs.restserver;
 
-import com.yeungs.restserver.common.FlinkSocketPool;
 import com.yeungs.restserver.server.RestServer;
 
 /**

@@ -14,7 +14,5 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public interface DecisionService {
 
-
-
-    public RestResponse makDecision(ChannelHandlerContext ctx,EventData eventData);
+    RestResponse makDecision(ChannelHandlerContext ctx, EventData eventData);
 }
